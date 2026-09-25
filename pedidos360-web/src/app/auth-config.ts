@@ -10,7 +10,7 @@ export const apiScopes = [`api://${API_CLIENT_ID}/access_as_user`];
 export const msalConfig: Configuration = {
   auth: {
     clientId: SPA_CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${TENANT_ID}`,
+    authority: `https://login.microsoftonline.com/common`,
     redirectUri: 'http://localhost:4200',
     postLogoutRedirectUri: 'http://localhost:4200',
   },
