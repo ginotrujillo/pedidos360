@@ -1,8 +1,25 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:5432/pedidos360
-    username: ${DB_USER}
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:pedidos360}
+    username: ${DB_USER:postgres}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
+    open-in-view: false
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:admin}
+    password: ${RABBITMQ_PASSWORD:admin123}
+
+logging:
+  level:
+    root: INFO
+    org.springframework.amqp: WARN
+    com.rabbitmq: WARN

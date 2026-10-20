@@ -6,23 +6,26 @@ spring:
     name: pedidos360
   profiles:
     active: dev
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: https://login.microsoftonline.com/d39637a6-cb63-4031-b19a-d1c1a17eb202/v2.0
-  datasource:
-    url: jdbc:postgresql://localhost:5432/pedidos360
-    username: postgres
-    password: TU_CLAVE_DE_POSTGRES
-  jpa:
-    hibernate:
-      ddl-auto: update
-    open-in-view: false
 
 app:
   security:
-    audience: da4ade51-40ca-4222-8838-306a092a85c1
+    audience: ${ENTRA_API_CLIENT_ID:da4ade51-40ca-4222-8838-306a092a85c1}
+  rabbitmq:
+    exchange:
+      direct: pedidos.direct
+      topic: pedidos.topic
+    queue:
+      stock: pedidos.stock.queue
+      notificaciones: pedidos.notificaciones.queue
+      auditoria: pedidos.auditoria.queue
+    dlq:
+      stock: pedidos.stock.dlq
+      notificaciones: pedidos.notificaciones.dlq
+      auditoria: pedidos.auditoria.dlq
+    routing:
+      aceptado: pedido.aceptado.evento
+      wildcardEstado: pedido.*.evento
+      wildcardTodo: pedido.#
 
 management:
   endpoints:

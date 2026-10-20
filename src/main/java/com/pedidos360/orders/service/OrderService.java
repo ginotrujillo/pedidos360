@@ -3,6 +3,7 @@ package com.pedidos360.orders.service;
 import com.pedidos360.catalog.entity.Product;
 import com.pedidos360.catalog.repository.ProductRepository;
 import com.pedidos360.common.exception.ResourceNotFoundException;
+import com.pedidos360.messaging.PedidoEventPublisher;
 import com.pedidos360.orders.dto.CreateOrderRequest;
 import com.pedidos360.orders.dto.OrderResponse;
 import com.pedidos360.orders.entity.Order;
@@ -25,6 +26,7 @@ public class OrderService {
 
     private final OrderRepository orders;
     private final ProductRepository products;
+    private final PedidoEventPublisher eventPublisher;
 
     @Transactional
     public OrderResponse create(CreateOrderRequest req, Jwt jwt) {
@@ -49,7 +51,9 @@ public class OrderService {
             total = total.add(p.getPrice().multiply(BigDecimal.valueOf(item.quantity())));
         }
         order.setTotal(total);
-        return OrderResponse.from(orders.save(order));
+        Order saved = orders.save(order);
+        eventPublisher.publicarCambioEstado(saved);
+        return OrderResponse.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -74,21 +78,22 @@ public class OrderService {
         Order o = find(id);
         OrderStatus current = o.getStatus();
 
-        // Regla mínima de la pauta
+        // Regla mÃ­nima de la pauta
         if (next == OrderStatus.DESPACHADO && current == OrderStatus.CREADO) {
             throw new IllegalStateException("No se puede despachar un pedido que no fue aceptado");
         }
         if (!current.canTransitionTo(next)) {
-            throw new IllegalStateException("Transición no permitida: " + current + " -> " + next);
+            throw new IllegalStateException("TransiciÃ³n no permitida: " + current + " -> " + next);
         }
 
         if (next == OrderStatus.ACEPTADO) {
             discountStock(o);
         } else if (next == OrderStatus.CANCELADO && current != OrderStatus.CREADO) {
-            restoreStock(o);   // ya se había descontado al aceptar
+            restoreStock(o);   // ya se habÃ­a descontado al aceptar
         }
 
         o.setStatus(next);
+        eventPublisher.publicarCambioEstado(o);
         return OrderResponse.from(o);
     }
 

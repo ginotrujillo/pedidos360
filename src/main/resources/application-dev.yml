@@ -1,9 +1,47 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://login.microsoftonline.com/${ENTRA_TENANT_ID:d39637a6-cb63-4031-b19a-d1c1a17eb202}/v2.0
   datasource:
     url: jdbc:h2:mem:pedidos360
     driver-class-name: org.h2.Driver
     username: sa
-    password: ""
+    password: 
   jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
+    open-in-view: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin # Si en la UI entras con guest, o 'admin' si usas admin
+    password: admin123 # Si en la UI entras con guest, o 'admin123' si usas admin
+    listener:
+      simple:
+       retry:
+         enabled: true
+         max-attempts: 3
+         initial-interval: 1000
+       default-requeue-rejected: false
+app:
+  security:
+    audience: ${ENTRA_API_CLIENT_ID:da4ade51-40ca-4222-8838-306a092a85c1}
+  rabbitmq:
+    exchange:
+      direct: pedidos.direct
+      topic: pedidos.topic
+    queue:
+      stock: pedidos.stock.queue
+      notificaciones: pedidos.notificaciones.queue
+      auditoria: pedidos.auditoria.queue
+    dlq:
+      stock: pedidos.stock.dlq
+      notificaciones: pedidos.notificaciones.dlq
+      auditoria: pedidos.auditoria.dlq
+    routing:
+      aceptado: pedido.aceptado.evento
+      wildcardEstado: pedido.*.evento
+      wildcardTodo: pedido.#
