@@ -6,6 +6,15 @@ spring:
     name: pedidos360
   profiles:
     active: dev
+  rabbitmq:
+    listener:
+      simple:
+        # ACK manual: cada consumer llama a basicAck / basicNack explícitamente
+        acknowledge-mode: manual
+        # Un mensaje a la vez por consumer (permite ver Ready vs Unacked en la Management UI)
+        prefetch: 1
+        # Un mensaje rechazado NO se reencola: va a la DLQ de su cola
+        default-requeue-rejected: false
 
 app:
   security:
@@ -26,6 +35,9 @@ app:
       aceptado: pedido.aceptado.evento
       wildcardEstado: pedido.*.evento
       wildcardTodo: pedido.#
+    demo:
+      # Demora artificial (ms) en el consumer de notificaciones, solo para mostrar "Unacked". 0 = desactivada
+      demora-ms: 0
 
 management:
   endpoints:

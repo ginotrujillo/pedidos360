@@ -156,3 +156,52 @@ El sistema está desplegado y operativo en AWS Academy Learner Lab:
 - Las credenciales de base de datos y configuración sensible se gestionan mediante variables de entorno (`application-prod.yml`), nunca escritas en el código fuente.
 - Los tokens JWT son validados tanto en el API Gateway (JWT Authorizer) como en el backend (Spring Security Resource Server), verificando `issuer` y `audience`.
 - El control de acceso por rol se aplica en cada endpoint del backend, no solo en el frontend.
+
+---
+
+## Mensajería con RabbitMQ (EP3 / EP4)
+
+### Topología (creada por `messaging/RabbitMQConfig.java`, nombres centralizados en `application.yml` → `app.rabbitmq.*`)
+
+| Cola | Exchange | Routing key | DLQ |
+|---|---|---|---|
+| `pedidos.stock.queue` | `pedidos.direct` (direct) | `pedido.aceptado.evento` | `pedidos.stock.dlq` |
+| `pedidos.notificaciones.queue` | `pedidos.topic` (topic) | `pedido.*.evento` | `pedidos.notificaciones.dlq` |
+| `pedidos.auditoria.queue` | `pedidos.topic` (topic) | `pedido.#` | `pedidos.auditoria.dlq` |
+
+Cada cola principal declara `x-dead-letter-exchange: ""` y `x-dead-letter-routing-key: <su DLQ>`.
+
+### Flujo
+- **Productor** `PedidoEventPublisher`: en cada cambio de estado publica en `pedidos.topic` con la key `pedido.<estado>.evento`; si el estado es `ACEPTADO` publica además en `pedidos.direct`.
+- **Consumers** `@RabbitListener` por dominio: `StockEventConsumer`, `NotificacionEventConsumer`, `AuditoriaEventConsumer`.
+- **ACK manual** (`acknowledge-mode: manual`): si el procesamiento termina bien el consumer hace `basicAck`; ante cualquier error registra el fallo en el log y hace `basicNack(tag, false, false)` (sin reencolar), por lo que RabbitMQ mueve el mensaje a la DLQ de su cola.
+
+### Microservicio administrador (`admin/`, solo rol `Admin`)
+Lógica en `RabbitAdminService` (usa `AmqpAdmin`), validaciones con Bean Validation y reglas de negocio (no duplicar, no borrar lo inexistente, no borrar recursos del sistema, nombres `amq.*` reservados).
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/admin/rabbitmq/queues` | Crear cola (`queueName`, `durable`, `conDlq`, `ttlMs`, `maxLength`) |
+| GET | `/api/admin/rabbitmq/queues/{name}` | Mensajes en espera y consumidores |
+| DELETE | `/api/admin/rabbitmq/queues/{name}` | Eliminar cola |
+| POST | `/api/admin/rabbitmq/exchanges` | Crear exchange (`exchangeName`, `type`: direct/topic/fanout, `durable`) |
+| DELETE | `/api/admin/rabbitmq/exchanges/{name}` | Eliminar exchange |
+| POST | `/api/admin/rabbitmq/bindings` | Crear binding (`queueName`, `exchangeName`, `routingKey`) |
+| DELETE | `/api/admin/rabbitmq/bindings` | Eliminar binding (mismo body) |
+
+Respuestas de error: 400 (validación), 404 (no existe), 409 (ya existe / recurso del sistema), 503 (RabbitMQ no disponible).
+
+### Ejecución local
+```bash
+docker compose -f docker-compose.local.yml up -d   # RabbitMQ local (UI en http://localhost:15672)
+./mvnw spring-boot:run                              # perfil dev (H2 + RabbitMQ local)
+```
+
+### Despliegue cloud: clúster de 2 nodos (carpeta `deploy/cloud/`)
+- `docker-compose.cloud.yml`: nodos `rabbit1` (5672/15672) y `rabbit2` (5673/15673), misma Erlang cookie, red `rabbitnet`, volúmenes persistentes.
+- `rabbitmq-cluster.conf`: `cluster_name = pedidos360-cluster`, descubrimiento `classic_config`.
+- `.env.example`: plantilla de cookie, usuario y clave (el `.env` real no se versiona).
+- `setup-policies.sh`: políticas de retención (`max-length`/`drop-head` en colas, `message-ttl` 24 h en DLQ).
+- `arrancar-backend.sh`: arranca el backend con el perfil `cloud` conectado a ambos nodos.
+
+Se usan colas clásicas: con solo 2 nodos, las colas quorum no tolerarían la caída de uno (necesitan mayoría).

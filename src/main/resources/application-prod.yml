@@ -1,22 +1,24 @@
+# Perfil producción: PostgreSQL en RDS + clúster RabbitMQ. Todo lo sensible llega por variables de entorno.
 spring:
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://login.microsoftonline.com/${ENTRA_TENANT_ID}/v2.0
+          issuer-uri: https://login.microsoftonline.com/${ENTRA_TENANT_ID:d39637a6-cb63-4031-b19a-d1c1a17eb202}/v2.0
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:pedidos360}
+    url: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME:pedidos360}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
-      ddl-auto: validate
+      # update: crea las tablas si la base está vacía (RDS recién creado)
+      ddl-auto: update
     open-in-view: false
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:admin}
-    password: ${RABBITMQ_PASSWORD:admin123}
+    addresses: ${RABBITMQ_ADDRESSES}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
+    connection-timeout: 10s
 
 logging:
   level:

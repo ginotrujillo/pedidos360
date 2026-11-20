@@ -1,0 +1,60 @@
+# Clúster RabbitMQ de 2 nodos para la EC2 (EP4).
+# Uso:  docker compose -f docker-compose.cloud.yml --env-file .env up -d
+# Las credenciales y la cookie vienen del archivo .env (NO se sube a GitHub; ver .env.example).
+services:
+  rabbit1:
+    image: rabbitmq:3.13-management
+    container_name: rabbit1
+    hostname: rabbit1                 # el nombre del nodo queda rabbit@rabbit1
+    restart: unless-stopped
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}   # misma cookie en ambos nodos = pueden formar clúster
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    ports:
+      - "5672:5672"     # AMQP nodo 1
+      - "15672:15672"   # Management UI nodo 1
+    volumes:
+      - rabbit1_data:/var/lib/rabbitmq
+      - ./rabbitmq-cluster.conf:/etc/rabbitmq/conf.d/20-cluster.conf:ro
+    networks:
+      - rabbitnet
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  rabbit2:
+    image: rabbitmq:3.13-management
+    container_name: rabbit2
+    hostname: rabbit2                 # el nombre del nodo queda rabbit@rabbit2
+    restart: unless-stopped
+    depends_on:
+      rabbit1:
+        condition: service_healthy    # arranca cuando el nodo 1 ya está listo y se une a él
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    ports:
+      - "5673:5672"     # AMQP nodo 2
+      - "15673:15672"   # Management UI nodo 2
+    volumes:
+      - rabbit2_data:/var/lib/rabbitmq
+      - ./rabbitmq-cluster.conf:/etc/rabbitmq/conf.d/20-cluster.conf:ro
+    networks:
+      - rabbitnet
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  rabbit1_data:
+  rabbit2_data:
+
+networks:
+  rabbitnet:
+    driver: bridge
